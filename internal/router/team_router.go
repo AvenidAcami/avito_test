@@ -6,11 +6,10 @@ import (
 	"avito_test/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
-func InitTeamRoutes(r *gin.Engine, db *gorm.DB) {
-	repo := repository.NewTeamRepository(db)
+func InitTeamRoutes(r *gin.Engine, baseRepo repository.BaseRepository) {
+	repo := repository.NewTeamRepository(baseRepo)
 	service := service.NewTeamService(repo)
 	controller := controller.NewTeamController(service)
 

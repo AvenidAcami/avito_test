@@ -12,7 +12,7 @@ import (
 )
 
 type TeamRepository struct {
-	db *gorm.DB
+	baseRepo BaseRepository
 }
 
 type ITeamRepository interface {
@@ -20,13 +20,13 @@ type ITeamRepository interface {
 	GetTeam(string) (model.Team, error)
 }
 
-func NewTeamRepository(db *gorm.DB) ITeamRepository {
-	return &TeamRepository{db: db}
+func NewTeamRepository(baseRepo BaseRepository) ITeamRepository {
+	return &TeamRepository{baseRepo: baseRepo}
 }
 
 func (tr *TeamRepository) AddTeam(team model.Team) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	tx := tr.db.WithContext(ctx).Begin()
+	tx := tr.baseRepo.DB.WithContext(ctx).Begin()
 
 	defer cancel()
 
@@ -73,7 +73,7 @@ func (tr *TeamRepository) GetTeam(teamName string) (model.Team, error) {
 
 func (tr *TeamRepository) teamExists(teamName string) (bool, error) {
 	var count int64
-	err := tr.db.Table("teams").Where("team_name = ?", teamName).Count(&count).Error
+	err := tr.baseRepo.DB.Table("teams").Where("team_name = ?", teamName).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
@@ -82,7 +82,7 @@ func (tr *TeamRepository) teamExists(teamName string) (bool, error) {
 
 func (tr *TeamRepository) getTeamMembers(ctx context.Context, teamName string) ([]model.Member, error) {
 	members := make([]model.Member, 0)
-	err := tr.db.WithContext(ctx).Table("members").Where("team_name = ?", teamName).Find(&members).Error
+	err := tr.baseRepo.DB.WithContext(ctx).Table("members").Where("team_name = ?", teamName).Find(&members).Error
 	if err != nil {
 		return members, err
 	}
