@@ -25,7 +25,7 @@ func (uc *UserController) SetlsActive(ctx *gin.Context) {
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"code":    "NOT_FOUND",
-			"message": "wrong bodys",
+			"message": "wrong body",
 		})
 		return
 	}
@@ -33,14 +33,32 @@ func (uc *UserController) SetlsActive(ctx *gin.Context) {
 	// Сделать возврат обновленного user
 	user, err := uc.service.SetlsActive(body.UserId, body.IsActive)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
+		ctx.JSON(http.StatusNotFound, gin.H{
 			"code":    "NOT_FOUND",
-			"message": "wrong bodys",
+			"message": "user not found",
 		})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"user": user,
+	})
+}
+
+func (uc *UserController) GetReview(ctx *gin.Context) {
+	userId := ctx.Query("user_id")
+
+	prs, err := uc.service.GetReview(userId)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"code":    "NOT_FOUND",
+			"message": "user not found",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"user_id":       userId,
+		"pull_requests": prs,
 	})
 }

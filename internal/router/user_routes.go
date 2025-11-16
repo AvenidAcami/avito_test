@@ -1,11 +1,21 @@
 package router
 
-import "github.com/gin-gonic/gin"
+import (
+	"avito_test/internal/controller"
+	"avito_test/internal/repository"
+	"avito_test/internal/service"
 
-func InitUserRoutes(r *gin.Engine) {
+	"github.com/gin-gonic/gin"
+)
+
+func InitUserRoutes(r *gin.Engine, baseRepo repository.BaseRepository) {
+	userRepository := repository.NewUserRepository(baseRepo)
+	userService := service.NewUserService(userRepository)
+	userController := controller.NewUserController(userService)
+
 	userGroup := r.Group("/user")
 	{
-		userGroup.GET("/setlsActive")
-		userGroup.POST("/getReview")
+		userGroup.GET("/setlsActive", userController.SetlsActive)
+		userGroup.POST("/getReview", userController.GetReview)
 	}
 }
