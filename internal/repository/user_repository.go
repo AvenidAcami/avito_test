@@ -22,14 +22,14 @@ func NewUserRepository(baseRepo BaseRepository) IUserRepository {
 func (ur *UserRepository) SetlsActive(userId string, isActive bool) (model.User, error) {
 	var user model.User
 
-	err := ur.baseRepo.DB.Table("members").Update("is_active", isActive).Where("user_id = ?", userId).Error
+	err := ur.baseRepo.DB.Table("members").Where("user_id = ?", userId).Update("is_active", isActive).Error
 	if err != nil {
 		return user, err
 	}
 
 	err = ur.baseRepo.DB.Table("members").Where("user_id = ?", userId).First(&user).Error
 	if err != nil {
-		return user, nil
+		return user, err
 	}
 	return user, nil
 }

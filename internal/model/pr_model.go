@@ -7,8 +7,8 @@ type PullRequest struct {
 	PullRequestName string    `json:"pull_request_name" binding:"required"`
 	AuthorId        string    `json:"author_id" binding:"required"`
 	Status          string    `json:"status" binding:"required"`
-	CreatedAt       time.Time `json:"createdAt"`
-	MergedAt        time.Time `json:"mergedAt"`
+	CreatedAt       time.Time `json:"createdAt" gorm:"column:createdAt"`
+	MergedAt        time.Time `json:"mergedAt" gorm:"column:mergedAt"`
 }
 
 type PullRequestWIds struct {
@@ -17,6 +17,6 @@ type PullRequestWIds struct {
 	AuthorId          string    `json:"author_id" binding:"required"`
 	Status            string    `json:"status" binding:"required"`
 	AssignedReviewers []string  `json:"assigned_reviewers" binding:"required"`
-	CreatedAt         time.Time `json:"createdAt"`
-	MergedAt          time.Time `json:"mergedAt"`
+	CreatedAt         time.Time `json:"createdAt" gorm:"column:createdAt"`
+	MergedAt          time.Time `json:"mergedAt" gorm:"column:mergedAt"`
 }

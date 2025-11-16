@@ -13,9 +13,9 @@ func InitUserRoutes(r *gin.Engine, baseRepo repository.BaseRepository) {
 	service := service.NewUserService(repo)
 	controller := controller.NewUserController(service)
 
-	userGroup := r.Group("/user")
+	userGroup := r.Group("/users")
 	{
-		userGroup.GET("/setlsActive", controller.SetlsActive)
-		userGroup.POST("/getReview", controller.GetReview)
+		userGroup.POST("/setIsActive", controller.SetlsActive)
+		userGroup.GET("/getReview", controller.GetReview)
 	}
 }

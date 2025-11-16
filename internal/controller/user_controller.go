@@ -18,7 +18,7 @@ func NewUserController(service service.IUserService) UserController {
 func (uc *UserController) SetlsActive(ctx *gin.Context) {
 	var body struct {
 		UserId   string `json:"user_id" binding:"required"`
-		IsActive bool   `json:"is_active" binding:"required"`
+		IsActive *bool  `json:"is_active" binding:"required"`
 	}
 
 	err := ctx.ShouldBindJSON(&body)
@@ -30,8 +30,7 @@ func (uc *UserController) SetlsActive(ctx *gin.Context) {
 		return
 	}
 
-	// Сделать возврат обновленного user
-	user, err := uc.service.SetlsActive(body.UserId, body.IsActive)
+	user, err := uc.service.SetlsActive(body.UserId, *body.IsActive)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{
 			"code":    "NOT_FOUND",

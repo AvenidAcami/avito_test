@@ -2,13 +2,11 @@ package controller
 
 import (
 	"avito_test/internal/service"
-	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
-
-var ErrPullRequestAlreadyExists = errors.New("pull request already exists")
 
 type PRsController struct {
 	service service.IPRsService
@@ -35,7 +33,7 @@ func (prc *PRsController) Create(ctx *gin.Context) {
 
 	pr, err := prc.service.Create(body.PullRequestId, body.PullRequestName, body.AuthorId)
 	if err != nil {
-		if errors.Is(err, ErrPullRequestAlreadyExists) {
+		if strings.Contains(err.Error(), "pull request already exists") {
 			ctx.JSON(http.StatusConflict, gin.H{
 				"code":    "PR_EXISTS",
 				"message": "pull request already exists",
@@ -97,6 +95,13 @@ func (prc *PRsController) Reassign(ctx *gin.Context) {
 
 	pr, replacedBy, err := prc.service.Reassign(body.PullRequestId, body.OldUserId)
 	if err != nil {
+		if strings.Contains(err.Error(), "user is not assigned to any pull request") {
+			ctx.JSON(http.StatusConflict, gin.H{
+				"code":    "NOT_ASSIGNED",
+				"message": "user is not assigned to any pull request",
+			})
+			return
+		}
 		ctx.JSON(http.StatusNotFound, gin.H{
 			"code":    "NOT_FOUND",
 			"message": "pull request or user not found",

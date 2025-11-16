@@ -65,7 +65,7 @@ func (prr *PRsRepository) Create(pRId string, pRName string, authorId string) (m
 		return pr, err
 	}
 
-	if err := prr.assignReviewers(tx, pRId); err != nil {
+	if err := prr.assignReviewers(tx, pRId, authorId); err != nil {
 		tx.Rollback()
 		return pr, err
 	}
@@ -73,7 +73,7 @@ func (prr *PRsRepository) Create(pRId string, pRName string, authorId string) (m
 	return pr, tx.Commit().Error
 }
 
-func (prr *PRsRepository) assignReviewers(tx *gorm.DB, pRId string) error {
+func (prr *PRsRepository) assignReviewers(tx *gorm.DB, pRId, authorId string) error {
 	userIds := make([]string, 0)
 	tx.Table("members").
 		Order("RANDOM()").
@@ -85,6 +85,7 @@ func (prr *PRsRepository) assignReviewers(tx *gorm.DB, pRId string) error {
 	for _, val := range userIds {
 		if err := tx.Table("members").
 			Where("user_id = ?", val).
+			Where("team_name = ?", authorId).
 			Update("pull_request_id", pRId).
 			Error; err != nil {
 			return err
@@ -102,7 +103,7 @@ func (prr *PRsRepository) assignReviewers(tx *gorm.DB, pRId string) error {
 }
 
 func (prr *PRsRepository) Merge(pRId string) (model.PullRequestWIds, error) {
-	var pr model.PullRequestWIds
+	var prwid model.PullRequestWIds
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	tx := prr.baseRepo.DB.WithContext(ctx).Begin()
@@ -114,7 +115,7 @@ func (prr *PRsRepository) Merge(pRId string) (model.PullRequestWIds, error) {
 		Update("status", "MERGED").
 		Error; err != nil {
 		tx.Rollback()
-		return pr, err
+		return prwid, err
 	}
 
 	if err := tx.Table("pull_requests").
@@ -122,40 +123,80 @@ func (prr *PRsRepository) Merge(pRId string) (model.PullRequestWIds, error) {
 		Update("mergedAt", time.Now()).
 		Error; err != nil {
 		tx.Rollback()
-		return pr, err
+		return prwid, err
 	}
 
-	pr, err := prr.getPRInfo(tx, pRId)
+	prwid, err := prr.getPRInfo(tx, pRId)
 	if err != nil {
-		return pr, err
+		return prwid, err
 	}
 
-	return pr, tx.Commit().Error
+	for _, val := range prwid.AssignedReviewers {
+		if err := tx.Table("members").
+			Where("user_id = ?", val).
+			Update("is_active", true).
+			Error; err != nil {
+			return prwid, err
+		}
+
+		if err := tx.Table("members").
+			Where("user_id = ?", val).
+			Update("pull_request_id", nil).
+			Error; err != nil {
+			return prwid, err
+		}
+	}
+
+	return prwid, tx.Commit().Error
 }
 
 func (prr *PRsRepository) getPRInfo(tx *gorm.DB, pRId string) (model.PullRequestWIds, error) {
-	var pr model.PullRequestWIds
+	var pr model.PullRequest
+	var prwid model.PullRequestWIds
 	var reviewers []string
 
 	if err := tx.Table("pull_requests").
 		Where("pull_request_id = ?", pRId).
+		Select("pull_request_id", "pull_request_name", "author_id", "status", "createdAt", "mergedAt").
 		First(&pr).Error; err != nil {
-		return pr, err
+		tx.Rollback()
+		return prwid, err
 	}
 
 	if err := tx.Table("members").
 		Select("user_id").
 		Where("pull_request_id = ?", pRId).
 		Find(&reviewers).Error; err != nil {
-		return pr, err
+		tx.Rollback()
+		return prwid, err
 	}
 
-	pr.AssignedReviewers = reviewers
-	return pr, nil
+	prwid.PullRequestId = pr.PullRequestId
+	prwid.PullRequestName = pr.PullRequestName
+	prwid.AuthorId = pr.AuthorId
+	prwid.Status = pr.Status
+	prwid.CreatedAt = pr.CreatedAt
+	prwid.MergedAt = pr.MergedAt
+	prwid.AssignedReviewers = reviewers
+	return prwid, nil
 }
 
 func (prr *PRsRepository) Reassign(pRId, oldUserId string) (model.PullRequestWIds, string, error) {
 	var replacedBy string
+	var IsActive bool
+
+	if err := prr.baseRepo.DB.
+		Table("members").
+		Where("user_id = ?", oldUserId).
+		Select("is_active").
+		Pluck("is_active", &IsActive).
+		Error; err != nil {
+		return model.PullRequestWIds{}, replacedBy, err
+	}
+
+	if IsActive {
+		return model.PullRequestWIds{}, replacedBy, errors.New("user is not assigned to any pull request")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	tx := prr.baseRepo.DB.WithContext(ctx).Begin()
@@ -164,8 +205,15 @@ func (prr *PRsRepository) Reassign(pRId, oldUserId string) (model.PullRequestWId
 
 	if err := tx.Table("members").
 		Where("user_id = ?", oldUserId).
-		Update("is_active = ?", true).Error; err != nil {
+		Update("is_active", true).Error; err != nil {
 		tx.Rollback()
+		return model.PullRequestWIds{}, replacedBy, err
+	}
+
+	if err := tx.Table("members").
+		Where("user_id = ?", oldUserId).
+		Update("pull_request_id", nil).
+		Error; err != nil {
 		return model.PullRequestWIds{}, replacedBy, err
 	}
 
@@ -173,7 +221,7 @@ func (prr *PRsRepository) Reassign(pRId, oldUserId string) (model.PullRequestWId
 		Where("is_active = ?", true).
 		Where("user_id != ?", oldUserId).
 		Select("user_id").
-		First(&replacedBy).Error; err != nil {
+		Pluck("user_id", &replacedBy).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			tx.Rollback()
 			return model.PullRequestWIds{}, replacedBy, err
@@ -189,7 +237,15 @@ func (prr *PRsRepository) Reassign(pRId, oldUserId string) (model.PullRequestWId
 
 	if err := tx.Table("members").
 		Where("user_id = ?", replacedBy).
-		Update("is_active = ?", false).
+		Update("is_active", false).
+		Error; err != nil {
+		tx.Rollback()
+		return model.PullRequestWIds{}, replacedBy, err
+	}
+
+	if err := tx.Table("members").
+		Where("user_id = ?", replacedBy).
+		Update("pull_request_id", pRId).
 		Error; err != nil {
 		tx.Rollback()
 		return model.PullRequestWIds{}, replacedBy, err
