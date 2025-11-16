@@ -11,7 +11,7 @@ type UserService struct {
 
 type IUserService interface {
 	SetlsActive(string, bool) (model.User, error)
-	GetReview(string) ([]model.PullRequest, error)
+	GetReview(string) ([]model.PullRequestWIds, error)
 }
 
 func NewUserService(repo repository.IUserRepository) IUserService {
@@ -22,6 +22,6 @@ func (us UserService) SetlsActive(userId string, isActive bool) (model.User, err
 	return us.repo.SetlsActive(userId, isActive)
 }
 
-func (us UserService) GetReview(userId string) ([]model.PullRequest, error) {
+func (us UserService) GetReview(userId string) ([]model.PullRequestWIds, error) {
 	return us.repo.GetReview(userId)
 }

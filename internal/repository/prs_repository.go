@@ -22,6 +22,7 @@ type PRsRepository struct {
 type IPRsRepository interface {
 	Create(pRId string, pRName string, authorId string) (model.PullRequest, error)
 	Merge(pRId string) (model.PullRequestWIds, error)
+	Reassign(pRId, oldUserId string) (model.PullRequestWIds, string, error)
 }
 
 func NewPRsRepository(baseRepo BaseRepository) IPRsRepository {

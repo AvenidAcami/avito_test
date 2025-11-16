@@ -1,6 +1,10 @@
 package repository
 
-import "avito_test/internal/model"
+import (
+	"avito_test/internal/model"
+	"context"
+	"time"
+)
 
 type UserRepository struct {
 	baseRepo BaseRepository
@@ -8,7 +12,7 @@ type UserRepository struct {
 
 type IUserRepository interface {
 	SetlsActive(string, bool) (model.User, error)
-	GetReview(string) ([]model.PullRequest, error)
+	GetReview(string) ([]model.PullRequestWIds, error)
 }
 
 func NewUserRepository(baseRepo BaseRepository) IUserRepository {
@@ -30,13 +34,28 @@ func (ur *UserRepository) SetlsActive(userId string, isActive bool) (model.User,
 	return user, nil
 }
 
-func (ur *UserRepository) GetReview(userId string) ([]model.PullRequest, error) {
-	var prs []model.PullRequest
+func (ur *UserRepository) GetReview(userId string) ([]model.PullRequestWIds, error) {
+	var prs []model.PullRequestWIds
+	var assignedUsers []string
 
-	err := ur.baseRepo.DB.Table("pull_requests").Where("user_id = ?", userId).Find(&prs).Error
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	tx := ur.baseRepo.DB.WithContext(ctx).Begin()
+
+	defer cancel()
+
+	err := tx.Table("pull_requests").Where("user_id = ?", userId).Find(&prs).Error
 	if err != nil {
+		tx.Rollback()
 		return prs, err
 	}
 
-	return prs, nil
+	for ind, val := range prs {
+		if err := tx.Table("members").Where("pull_request_id = ?", val.PullRequestId).Select("user_id").Find(&assignedUsers).Error; err != nil {
+			tx.Rollback()
+			return prs, err
+		}
+		prs[ind].AssignedReviewers = assignedUsers
+	}
+
+	return prs, tx.Commit().Error
 }

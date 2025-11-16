@@ -8,8 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TODO: разобраться зачем тут member, если есть user (делать что-то сонным - плохая идея)
-// TODO: в GetReview добавить возврат ассигнутных для пр пользователей
 func Run() {
 	r := gin.Default()
 
@@ -20,6 +18,7 @@ func Run() {
 	{
 		router.InitTeamRoutes(r, baseRepo)
 		router.InitUserRoutes(r, baseRepo)
+		router.InitPRsRoutes(r, baseRepo)
 	}
 
 	r.Run(":8080")
