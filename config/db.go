@@ -1,13 +1,65 @@
 package config
 
 import (
+	"database/sql"
+	"embed"
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+const migrationsDir = "migrations"
+
+//go:embed migrations/*.sql
+var MigrationsFS embed.FS
+
+func restoreData(dbPass, dbHost, dbPort, dbName string) error {
+	connStr := fmt.Sprintf("host=%s port=%s user=postgres password=%s dbname=postgres sslmode=disable",
+		dbHost, dbPort, dbPass)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return err
+	}
+
+	var exists bool
+	query := "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
+	err = db.QueryRow(query, dbName).Scan(&exists)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", pq.QuoteIdentifier(dbName)))
+		if err != nil {
+			return err
+		}
+		log.Println("Database created")
+	} else {
+		log.Println("Database already exists")
+	}
+
+	db.Close()
+
+	connStr = fmt.Sprintf("host=%s port=%s user=postgres password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbPass, dbName)
+	db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	migrator := MustGetNewMigrator(MigrationsFS, migrationsDir)
+	err = migrator.ApplyMigrations(db)
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
+}
 
 func InitDb() *gorm.DB {
 	var (
@@ -16,19 +68,24 @@ func InitDb() *gorm.DB {
 	)
 
 	if dbUser, err = GetEnv("DB_USER"); err != nil {
-		log.Fatalf("DB_USER: %w", err)
+		log.Fatal("DB_PORT:", err)
 	}
 	if dbPass, err = GetEnv("DB_PASSWORD"); err != nil {
-		log.Fatalf("DB_PASSWORD: %w", err)
+		log.Fatal("DB_PORT:", err)
 	}
 	if dbName, err = GetEnv("DB_NAME"); err != nil {
-		log.Fatalf("DB_NAME: %w", err)
+		log.Fatal("DB_PORT:", err)
 	}
 	if dbHost, err = GetEnv("DB_HOST"); err != nil {
-		log.Fatalf("DB_HOST: %w", err)
+		log.Fatal("DB_PORT:", err)
 	}
 	if dbPort, err = GetEnv("DB_PORT"); err != nil {
-		log.Fatalf("DB_PORT: %w", err)
+		log.Fatal("DB_PORT:", err)
+	}
+
+	err = restoreData(dbPass, dbHost, dbPort, dbName)
+	if err != nil {
+		log.Fatalln("Failed to create database:", err)
 	}
 
 	connStr := fmt.Sprintf(
