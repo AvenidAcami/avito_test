@@ -1,1 +1,6 @@
-# avito_test
+## Запуск
+
+```bash
+docker compose up
+```
+
